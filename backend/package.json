@@ -1,0 +1,14 @@
+{
+  "name": "contract-copilot-backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "合同避坑助手 · Pod1 后端骨架（文件接收与解析 / OCR 与文本预处理）",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "start": "node server.mjs",
+    "dev": "node --watch server.mjs",
+    "test": "node --test",
+    "todo": "node tools/list-todo.mjs"
+  }
+}

@@ -1,0 +1,13 @@
+node_modules/
+*.log
+.DS_Store
+.env
+
+# 运行期产物（报告/结果/审计日志/上传暂存）
+runs/
+backend/var/
+outputs/*
+
+# 但保留仓库需要展示的素材
+!outputs/示例报告-含坑合同.md
+!outputs/*.png

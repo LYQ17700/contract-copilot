@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>合同避坑助手 · Demo</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232f5fe0'/%3E%3Ctext x='16' y='23' font-size='18' text-anchor='middle' fill='white' font-family='sans-serif'%3E%E5%90%88%3C/text%3E%3C/svg%3E" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="logo">合</span>
+    <div>
+      <h1>合同避坑助手</h1>
+      <p>垂直领域「租房合同」AI 审查助理 · Pod 模式演示</p>
+    </div>
+  </div>
+  <div class="health" id="health">正在检测解析引擎…</div>
+</header>
+
+<main class="layout">
+  <aside class="col col-left">
+    <section class="card">
+      <h2>1 · 提交合同</h2>
+      <div class="drop" id="drop">
+        <input type="file" id="file" accept=".pdf,.docx,.txt,.md,.png,.jpg,.jpeg" hidden />
+        <p><strong>拖拽文件到这里</strong>，或<label class="link" for="file">选择文件</label></p>
+        <small>支持 PDF / DOCX / TXT / MD（图片走 OCR，需本地语言包）</small>
+      </div>
+      <div class="field">
+        <label for="paste">或直接粘贴合同文本</label>
+        <textarea id="paste" rows="5" placeholder="把合同文字粘在这里…"></textarea>
+      </div>
+      <div class="row">
+        <button class="primary" id="run">开始审查</button>
+        <button class="ghost" id="reset">清空</button>
+      </div>
+      <div class="samples">
+        <span>演示样例：</span>
+        <button class="chip" data-sample="租房合同-含坑.pdf">含坑合同 · PDF</button>
+        <button class="chip" data-sample="租房合同-含坑.txt">含坑合同 · TXT</button>
+        <button class="chip" data-sample="租房合同-规范对照.txt">规范合同 · TXT</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>2 · 处理流水线</h2>
+      <ol class="pipeline" id="pipeline">
+        <li><span>等待提交</span></li>
+      </ol>
+    </section>
+
+    <section class="card">
+      <h2>3 · 团队分工映射</h2>
+      <ul class="roles">
+        <li><b>Pod1</b> 文档解析组：上传接口、PDF/DOCX/OCR、文本预处理</li>
+        <li><b>Pod2</b> 风险识别组：RAG 检索、风险 Agent、报告生成</li>
+        <li><b>Pod2</b> 可信校验&amp;隐私专员：强制原文+法条引用、PII 脱敏、审计日志</li>
+        <li><b>共享资源池</b> 法学专家：法条复核标记（pending 条目会被显式标注）</li>
+      </ul>
+    </section>
+  </aside>
+
+  <section class="col col-mid">
+    <div class="card summary" id="summary">
+      <div class="grade" id="grade">—</div>
+      <div class="summary-text">
+        <h2>提交合同后生成避坑结论</h2>
+        <p>风险分级、命中条款、法条依据与修改建议会显示在这里。</p>
+      </div>
+    </div>
+    <div class="card">
+      <h2>合同原文 <small id="docmeta"></small></h2>
+      <div class="doc" id="doc"><p class="empty">尚未解析任何文件。</p></div>
+    </div>
+  </section>
+
+  <section class="col col-right">
+    <nav class="tabs" id="tabs">
+      <button class="tab active" data-tab="findings">风险清单</button>
+      <button class="tab" data-tab="facts">关键条款</button>
+      <button class="tab" data-tab="report">避坑报告</button>
+      <button class="tab" data-tab="audit">审计日志</button>
+      <button class="tab" data-tab="kb">知识库</button>
+    </nav>
+    <div class="card panel" id="panel-findings"><p class="empty">暂无结果。</p></div>
+    <div class="card panel hidden" id="panel-facts"></div>
+    <div class="card panel hidden" id="panel-report"></div>
+    <div class="card panel hidden" id="panel-audit"></div>
+    <div class="card panel hidden" id="panel-kb"></div>
+  </section>
+</main>
+<footer class="foot">演示用途，不构成法律意见。规则与法条可在 <code>data/</code> 下直接编辑。</footer>
+<script src="app.js"></script>
+</body>
+</html>
