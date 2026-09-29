@@ -7,6 +7,9 @@
 export function stubProvider() {
   return {
     name: 'stub',
+    async ready() {
+      return { ready: true, placeholder: true, notices: ['stub 返回占位文本，只证明链路可跑，不代表具备真实 OCR 能力'] };
+    },
     async recognize(buffer, { documentId } = {}) {
       const custom = process.env.OCR_STUB_TEXT;
       return {

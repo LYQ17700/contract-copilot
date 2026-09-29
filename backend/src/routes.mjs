@@ -32,6 +32,7 @@ export function buildRoutes({ upload, pipeline, jobs }) {
   router.get('/api/v1/documents/:id', controller.show, { label: '文档详情' });
   router.post('/api/v1/documents/:id/extract', controller.extract, { label: '提取文字并切分条款' });
   router.post('/api/v1/documents/:id/analyze', controller.analyze, { label: '端到端：提取 + 风险识别' });
+  router.get('/api/v1/jobs', controller.jobs, { label: '任务列表' });
   router.get('/api/v1/jobs/:id', controller.job, { label: '异步任务状态' });
 
   return router;

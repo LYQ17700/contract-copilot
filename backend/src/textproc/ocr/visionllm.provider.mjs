@@ -13,6 +13,10 @@ export function visionLlmProvider() {
   const model = process.env.VISION_LLM_MODEL || 'gpt-5-vision';
   return {
     name: 'vision-llm',
+    async ready() {
+      if (!apiKey) return { ready: false, code: 'not_implemented', reason: '未配置 VISION_LLM_KEY（或 CONTRACT_COPILOT_LLM_KEY）' };
+      return { ready: true, model };
+    },
     async recognize(buffer) {
       if (!apiKey) throw new NotImplementedError('未配置 VISION_LLM_KEY（或 CONTRACT_COPILOT_LLM_KEY）', '后端 B');
       const res = await fetch(baseUrl + '/chat/completions', {

@@ -40,15 +40,16 @@ export function createDocumentController({ upload, pipeline, jobs }) {
   }
 
   async function extract(ctx) {
-    const result = await pipeline.run(ctx.params.id);
     if (ctx.query.async === '1') {
-      const job = jobs.create({ documentId: ctx.params.id, kind: 'extract' });
+      const document = await upload.get(ctx.params.id);
+      const job = jobs.create({ documentId: document.id, kind: 'extract' });
       Promise.resolve()
-        .then(() => pipeline.run(ctx.params.id))
+        .then(() => pipeline.run(document.id, { onStep: (steps) => jobs.advance(job.id, steps) }))
         .then((r) => jobs.finish(job.id, { result: { steps: r.steps, preprocessed: serializePreprocessed(r.preprocessed) } }))
         .catch((error) => jobs.finish(job.id, { error }));
       return ctx.reply(202, { job, hint: 'GET /api/v1/jobs/' + job.id });
     }
+    const result = await pipeline.run(ctx.params.id);
     return {
       document: result.document,
       parsed: { ...result.parsed, text: undefined, textChars: (result.parsed.text || '').length },
@@ -74,5 +75,9 @@ export function createDocumentController({ upload, pipeline, jobs }) {
     return { job: record };
   }
 
-  return { create, show, list, extract, analyze: analyzeDocument, job };
+  async function listJobs(ctx) {
+    return { jobs: jobs.list({ limit: Math.min(Number(ctx.query.limit) || 50, 200) }) };
+  }
+
+  return { create, show, list, extract, analyze: analyzeDocument, job, jobs: listJobs };
 }

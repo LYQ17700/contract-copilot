@@ -53,10 +53,13 @@ export function loadConfig(overrides = {}) {
       baseUrl: (env.POD2_BASE_URL || 'http://127.0.0.1:5178').replace(/\/+$/, ''),
       mode: env.ANALYZE_MODE || 'mock'
     },
+    jobTtlMs: int(env.JOB_TTL_MIN, 30) * 60 * 1000,
+    jobSweepMs: int(env.JOB_SWEEP_MIN, 5) * 60 * 1000,
     corsOrigins: list(env.CORS_ORIGINS || '*'),
     staticDir: env.STATIC_DIR ? abs(env.STATIC_DIR, '.') : ''
   };
   if (cfg.maxBytes <= 0) throw new Error('配置错误：MAX_UPLOAD_MB 必须为正整数');
+  if (cfg.jobTtlMs <= 0 || cfg.jobSweepMs <= 0) throw new Error('配置错误：JOB_TTL_MIN / JOB_SWEEP_MIN 必须为正整数');
   if (!['stub', 'tesseract', 'vision-llm'].includes(cfg.ocrProvider)) {
     throw new Error('配置错误：OCR_PROVIDER 只能是 stub | tesseract | vision-llm，当前为 ' + cfg.ocrProvider);
   }

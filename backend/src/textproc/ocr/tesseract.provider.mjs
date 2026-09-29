@@ -16,14 +16,25 @@ function findTessdata() {
   return dirs.find((dir) => fs.existsSync(path.join(dir, 'chi_sim.traineddata')));
 }
 
+/** 只查本地依赖，不加载 worker、不发网络请求。 */
+async function capability() {
+  if (!hasModule('tesseract.js')) return { ready: false, code: 'not_implemented', reason: 'tesseract.js 未安装：npm i tesseract.js' };
+  if (!findTessdata()) return { ready: false, code: 'not_implemented', reason: '缺少中文语言包 chi_sim.traineddata：设置 TESSDATA_PREFIX 或放到 backend/var/tessdata/' };
+  return { ready: true };
+}
+
 export function tesseractProvider() {
   let workerPromise;
   return {
     name: 'tesseract',
+    async ready() {
+      const probe = await capability();
+      return { ...probe, worker: workerPromise ? 'warm' : 'cold' };
+    },
     async recognize(buffer) {
-      if (!hasModule('tesseract.js')) throw new NotImplementedError('tesseract.js 未安装：npm i tesseract.js', '后端 B');
+      const probe = await capability();
+      if (!probe.ready) throw new NotImplementedError(probe.reason, '后端 B');
       const tessdata = findTessdata();
-      if (!tessdata) throw new NotImplementedError('缺少中文语言包 chi_sim.traineddata：设置 TESSDATA_PREFIX 或放到 backend/var/tessdata/', '后端 B');
       workerPromise ||= (async () => {
         const { createWorker } = await importBundle('tesseract.js');
         return createWorker(['chi_sim'], 1, { langPath: tessdata, cachePath: tessdata, gzip: false });

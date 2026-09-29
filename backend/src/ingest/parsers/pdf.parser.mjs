@@ -6,6 +6,7 @@ import { bundleFile, importBundle } from '../../lib/runtime-deps.mjs';
  * 注意：Node 版 pdf.js 用 fs.readFile 读取 cMap/字体，因此传目录路径而非 URL。
  *
  * @owner 后端 A
+ * @todo(后端A-2) 首次加载 pdfjs 约 3s：服务启动时预热，并补解析超时与失败重试
  */
 const CJK = /[\u3000-\u303f\u4e00-\u9fff\uff00-\uffef]/;
 const dirPath = (name) => bundleFile('pdfjs-dist', name).split(path.sep).join('/') + '/';

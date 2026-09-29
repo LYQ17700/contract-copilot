@@ -17,21 +17,25 @@ export class ExtractPipeline {
     this.storage = storage;
   }
 
-  async run(documentId) {
+  async run(documentId, { onStep } = {}) {
     const steps = [];
+    const publish = () => onStep?.(steps.map((s) => ({ ...s })));
     const step = async (name, owner, fn) => {
       const started = Date.now();
       const entry = { name, owner, state: 'running', ms: 0 };
       steps.push(entry);
+      publish();
       try {
         const value = await fn();
         entry.state = 'done';
         entry.ms = Date.now() - started;
+        publish();
         return value;
       } catch (error) {
         entry.state = 'failed';
         entry.ms = Date.now() - started;
         entry.error = error.message;
+        publish();
         throw error;
       }
     };

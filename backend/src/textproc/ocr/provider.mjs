@@ -2,7 +2,8 @@
  * OCR Provider 接口（后端 B 的核心边界）。
  *
  * 约定：
- *  - 工厂函数必须是同步的，返回 { name, recognize(buffer, ctx) -> Promise<{text, notices?, confidence?}> }
+ *  - 工厂函数必须是同步的，返回 { name, ready(), recognize(buffer, ctx) -> Promise<{text, notices?, confidence?}> }
+ *  - ready() 只做本地能力探测（查依赖/语言包/Key），不得发起任何外部调用；/health 只走 ready()；
  *  - 能力缺失（缺语言包/缺 Key）时在 recognize() 里抛 NotImplementedError，
  *    这样 /health 仍能启动并如实报告，不会整个服务起不来；
  *  - 失败要抛异常，不要返回空字符串假装成功。
@@ -40,13 +41,25 @@ export function resetOcrProvider() {
   active = undefined;
 }
 
-/** 给 /health 用：不抛异常，只报告能力是否就绪。 */
+/** 给 /health 用：只探测能力是否就绪，不真调 OCR/视觉模型，不抛异常。 */
 export async function probeOcrProvider() {
+  const name = config.ocrProvider;
+  if (!registry.has(name)) return { name, ready: false, reason: '未知 OCR_PROVIDER：' + name, code: 'invalid_config' };
   try {
     const provider = getOcrProvider();
-    const probe = await provider.recognize(Buffer.from('probe'), { documentId: 'probe' });
-    return { name: provider.name, ready: true, chars: (probe.text || '').length, notices: probe.notices || [] };
+    const probe = (await provider.ready?.()) ?? { ready: true };
+    return { name: provider.name, ...probe };
   } catch (error) {
-    return { name: config.ocrProvider, ready: false, reason: error.message, code: error.code || 'error' };
+    return { name, ready: false, reason: error.message, code: error.code || 'error' };
+  }
+}
+
+/** 进程退出时释放常驻资源（例如 tesseract worker）。 */
+export async function shutdownOcrProvider() {
+  if (!active) return;
+  try {
+    await active.shutdown?.();
+  } finally {
+    active = undefined;
   }
 }

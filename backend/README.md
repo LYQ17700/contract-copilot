@@ -2,7 +2,7 @@
 
 两名后端可以**立刻并行**开发的工程骨架：目录边界 = 人员分工，模块之间只通过 `src/domain/contracts.mjs` 里的数据结构通信。
 
-当前状态（已在本机验证）：`npm test` 14 用例全绿；`npm start` 后用真实 PDF 走通「上传 → 提取 → 切条款 → 风险识别(mock)」。
+当前状态（已在本机验证）：`npm test` 17 用例全绿；`npm start` 后用真实 PDF 走通「上传 → 提取 → 切条款 → 风险识别(mock)」。
 
 ## 30 秒跑起来
 
@@ -47,12 +47,13 @@ node tools/smoke.mjs ../data/samples/租房合同-含坑.pdf   # 需服务已启
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| GET | `/health` | 依赖与 OCR 能力探测、解析器清单、Pod2 模式 |
+| GET | `/health` | 依赖与 OCR 能力探测（只查本地依赖，不真调 OCR）、解析器清单、Pod2 模式 |
 | GET | `/version` · `/__routes` | 版本 / 路由表（联调对账用） |
 | POST | `/api/v1/documents` | 上传（multipart `file` 字段）或粘贴（JSON `{text}`）→ 201 |
 | GET | `/api/v1/documents` · `/api/v1/documents/:id` | 列表 / 详情 |
 | POST | `/api/v1/documents/:id/extract` | 提取文字 + 切条款；`?async=1` 返回 202 + jobId |
 | POST | `/api/v1/documents/:id/analyze` | 端到端：提取 + 风险识别 |
+| GET | `/api/v1/jobs` | 任务列表（新→旧，`?limit=` 上限 200） |
 | GET | `/api/v1/jobs/:id` | 异步任务状态与步骤耗时 |
 
 ```bash
@@ -60,6 +61,13 @@ curl -F "file=@../data/samples/租房合同-含坑.pdf" localhost:5180/api/v1/do
 curl -X POST localhost:5180/api/v1/documents/<id>/extract
 curl -X POST localhost:5180/api/v1/documents/<id>/analyze
 ```
+
+## 任务与运维
+
+- `?async=1` 立即返回 202（不再先等解析跑完），解析在后台执行，步骤进度实时写回任务，前端轮询 `GET /api/v1/jobs/:id` 即可。
+- 任务表 TTL 与清理周期由 `JOB_TTL_MIN` / `JOB_SWEEP_MIN` 控制，进程内定时器自动 sweep，无需外部调度。
+- `SIGINT` / `SIGTERM` 优雅退出：停止接收新请求 → 释放常驻 OCR worker → 退出；10 秒内没退完则强制结束。
+- `/health` 的 OCR 探测走各 Provider 的 `ready()`，只查本地依赖（模块 / 语言包 / API Key），不会发起任何外部调用；结果形如 `{ ready, reason?, worker?, placeholder? }`。
 
 **给前端的约定**：`preprocessed.flow` 与 `preprocessed.map` 是服务端内部索引（长度≈字符数），**不下发**；高亮用 `clauses[].start/end` + `findings[].start/end`，单位是 `preprocessed.text` 的字符下标。
 
