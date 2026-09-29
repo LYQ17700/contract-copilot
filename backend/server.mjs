@@ -56,28 +56,28 @@ export function createApp(overrides = {}) {
 
 const isMain = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (isMain) {
-    const { handler, router, services } = createApp();
+  const { handler, router, services } = createApp();
   const server = http.createServer((req, res) => {
     handler(req, res).catch((error) => {
       createLogger('http').error('fatal', { message: error.message, stack: error.stack });
       if (!res.headersSent) res.writeHead(500, { 'content-type': 'application/json; charset=utf-8' }).end(JSON.stringify({ error: { code: 'internal_error' } }));
     });
   });
-    const sweepTimer = setInterval(() => services.jobs.sweep(), config.jobSweepMs);
-    sweepTimer.unref();
-    let stopping = false;
-    const stop = (signal) => {
-      if (stopping) return;
-      stopping = true;
-      clearInterval(sweepTimer);
-      createLogger('boot').info('shutting down', { signal });
-      server.close(() => {
-        shutdownOcrProvider().finally(() => process.exit(0));
-      });
-      setTimeout(() => process.exit(1), 10000).unref();
-    };
-    process.on('SIGINT', () => stop('SIGINT'));
-    process.on('SIGTERM', () => stop('SIGTERM'));
+  const sweepTimer = setInterval(() => services.jobs.sweep(), config.jobSweepMs);
+  sweepTimer.unref();
+  let stopping = false;
+  const stop = (signal) => {
+    if (stopping) return;
+    stopping = true;
+    clearInterval(sweepTimer);
+    createLogger('boot').info('shutting down', { signal });
+    server.close(() => {
+      shutdownOcrProvider().finally(() => process.exit(0));
+    });
+    setTimeout(() => process.exit(1), 10000).unref();
+  };
+  process.on('SIGINT', () => stop('SIGINT'));
+  process.on('SIGTERM', () => stop('SIGTERM'));
   server.listen(config.port, config.host, () => {
     createLogger('boot').info('listening', { url: 'http://' + config.host + ':' + config.port, routes: router.routes.length, ocr: config.ocrProvider, analyzeMode: config.pod2.mode });
     process.stdout.write('  合同避坑助手 · 后端骨架 → http://' + config.host + ':' + config.port + '/health\n');
