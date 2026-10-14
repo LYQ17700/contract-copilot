@@ -2,7 +2,7 @@
 
 两名后端可以**立刻并行**开发的工程骨架：目录边界 = 人员分工，模块之间只通过 `src/domain/contracts.mjs` 里的数据结构通信。
 
-当前状态（已在本机验证）：`npm test` 17 用例全绿；`npm start` 后用真实 PDF 走通「上传 → 提取 → 切条款 → 风险识别(mock)」。
+当前状态（已在本机验证）：`npm test` 29 用例全绿；`npm start` 后用真实 PDF 走通「上传 → 提取 → 切条款 → 风险识别(mock)」。
 
 ## 30 秒跑起来
 
@@ -71,6 +71,36 @@ curl -X POST localhost:5180/api/v1/documents/<id>/analyze
 
 **给前端的约定**：`preprocessed.flow` 与 `preprocessed.map` 是服务端内部索引（长度≈字符数），**不下发**；高亮用 `clauses[].start/end` + `findings[].start/end`，单位是 `preprocessed.text` 的字符下标。
 
+## 后端 B 能力与配置
+
+文本处理链路已完成以下能力：
+
+- **条款切分**：支持 `第×条/章/节/篇`、`一、`、`（一）`、`附件一`、`Article 3`、`1.` 等编号；条款下的款/项挂在 `clause.items`，同时保留 `clause.body` 与原文偏移的严格一致。
+- **回流映射**：`flow` 的每个下标都能映射回 `preprocessed.text`，PDF 硬换行不会破坏前端高亮。
+- **Tesseract OCR**：worker 常驻复用、请求串行化、冷启动与识别超时、瞬时错误重试；识别超时会主动销毁 worker，避免复用异常状态。
+- **多页 TIFF 与纠正**：sharp 把多页 TIFF 拆成逐页 PNG，Tesseract 的 `rotateAuto` 做倾斜检测；非 PNG 图片统一归一化后再识别。
+- **视觉模型 OCR**：请求前做体积限制，支持超时、429/5xx 重试、多图输入；可选输出条款线索，但最终切分仍以后端 B 的切分器为准。
+- **结果标准化**：不同 Provider 的 `text/confidence/pages` 统一成 `ParsedDocument` 可消费的结构，图片链路会把真实页数写入 `pageCount`。
+
+可用环境变量：
+
+| 变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `OCR_TESSERACT_WORKER_TIMEOUT_MS` | `60000` | worker 冷启动超时 |
+| `OCR_TESSERACT_TIMEOUT_MS` | `60000` | 单页识别超时 |
+| `OCR_TESSERACT_RETRIES` | `2` | 识别尝试次数 |
+| `OCR_TESSERACT_AUTO_ROTATE` | `1` | 设为 `0` 关闭 Tesseract 自动纠偏 |
+| `OCR_TESSERACT_PSM` | `6` | 页面分割模式，合同表格建议 `6` |
+| `OCR_TESSERACT_DPI` | 空 | 可选，传给 Tesseract 的 `user_defined_dpi` |
+| `VISION_LLM_KEY` / `CONTRACT_COPILOT_LLM_KEY` | 空 | 视觉模型 API Key |
+| `VISION_LLM_BASE_URL` / `VISION_LLM_MODEL` | OpenAI 兼容默认值 | 视觉模型地址与模型名 |
+| `VISION_LLM_TIMEOUT_MS` | `90000` | 视觉模型请求超时 |
+| `VISION_LLM_RETRIES` | `2` | 视觉模型尝试次数 |
+| `VISION_MAX_BYTES` | `8388608` | 单页 PNG 体积上限 |
+| `VISION_LLM_STRUCTURED` | `0` | 设为 `1` 时要求模型同时返回条款线索 |
+
+默认允许上传的图片扩展名已扩展到 `png/jpg/jpeg/bmp/tif/tiff/webp`；Tesseract 仍需要 `chi_sim.traineddata` 才能实际识别。图像归一化与多页 TIFF 依赖 `sharp`：本机 Codex 运行时已提供，正式部署执行 `npm i sharp` 即可走 `backend/node_modules`。
+
 ## 待填槽位
 
 `npm run todo` 会列出全部 `@todo(...)`，当前重点：
@@ -79,9 +109,13 @@ curl -X POST localhost:5180/api/v1/documents/<id>/analyze
 - `后端A-2` 解析超时与失败重试；PDF 首次加载 pdfjs 约 3s，需要预热
 - `后端A-3` 任务表换持久化 + worker 并发
 - `后端A-4` 与 Pod2 对齐 `/v1/analyze` 正式契约（字段名、错误码、幂等键）
-- `后端B-1/2` tesseract worker 常驻复用、识别超时、多页 TIFF 与矫正
-- `后端B-3` 视觉模型转写链路与 Pod2 联调
-- `后端B-4` 更多条款编号体系（`一、`、`附件一`、`Article 3`）与条下款/项
+
+后端 B 的现有槽位已完成：
+
+- `后端B-1` tesseract worker 常驻复用 + 识别超时
+- `后端B-2` 多页 TIFF 拆分 + 倾斜纠正 + 图像归一化
+- `后端B-3` 视觉模型转写链路（体积上限、超时、重试、多图输入）
+- `后端B-4` 更多条款编号体系与条下款/项
 
 ## 设计取舍
 

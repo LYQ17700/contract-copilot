@@ -45,7 +45,7 @@ export function loadConfig(overrides = {}) {
     storageDir: abs(env.STORAGE_DIR, './var/uploads'),
     varDir: abs('./var'),
     maxBytes: int(env.MAX_UPLOAD_MB, 12) * 1024 * 1024,
-    allowedExtensions: list(env.ALLOWED_EXTENSIONS || 'pdf,docx,txt,md,png,jpg,jpeg'),
+    allowedExtensions: list(env.ALLOWED_EXTENSIONS || 'pdf,docx,txt,md,png,jpg,jpeg,bmp,tif,tiff,webp'),
     ocrProvider: env.OCR_PROVIDER || 'stub',
     tessdataPrefix: env.TESSDATA_PREFIX || '',
     nodeModules: env.CONTRACT_COPILOT_NODE_MODULES || '',

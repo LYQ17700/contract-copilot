@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { normalize, cnNumber } from '../src/textproc/preprocess.mjs';
-import { splitClauses } from '../src/textproc/clause-splitter.mjs';
+import { isClauseHeading, splitClauses } from '../src/textproc/clause-splitter.mjs';
 import { buildFlow } from '../src/textproc/flow.mjs';
 
 test('normalize 处理 CRLF、全角空格与尾部空白', () => {
@@ -31,6 +31,58 @@ test('splitClauses 产出的偏移能还原原文', () => {
 test('无编号文本退化为段落切分', () => {
   const clauses = splitClauses(normalize('第一段内容\n\n第二段内容'));
   assert.equal(clauses.length, 2);
+});
+
+test('支持一、附件一、Article 3 与 1. 等编号体系', () => {
+  const text = normalize([
+    '一、租金与押金',
+    '月租金2000元。',
+    '（一）押金为一个月租金',
+    '（二）租金按月支付',
+    '附件一 房屋设施清单',
+    '床、桌、洗衣机。',
+    'Article 3 Payment',
+    'The tenant pays monthly.',
+    '4. Miscellaneous',
+    'Other terms.'
+  ].join('\n'));
+  const clauses = splitClauses(text);
+  assert.deepEqual(clauses.map((c) => c.heading), [
+    '一、租金与押金',
+    '附件一 房屋设施清单',
+    'Article 3 Payment',
+    '4. Miscellaneous'
+  ]);
+  assert.equal(clauses[0].items.length, 2);
+  assert.equal(clauses[0].items[0].marker, '（一）押金为一个月租金');
+  assert.equal(clauses[2].items.length, 0);
+});
+
+test('不是标题的正文行不会被误切', () => {
+  assert.equal(isClauseHeading('一、'), true);
+  assert.equal(isClauseHeading('一、租金与押金'), true);
+  assert.equal(isClauseHeading('  4. Miscellaneous'), true);
+  assert.equal(isClauseHeading('（一）押金为一个月租金'), false);
+  assert.equal(isClauseHeading('甲方：某公司'), false);
+  assert.equal(isClauseHeading('本条自2026年1月1日起生效。'), false);
+});
+
+test('所有条款与款项偏移都能还原原文', () => {
+  const text = normalize([
+    '房屋租赁合同',
+    '第一条 租金',
+    '月租金2000元。',
+    '（一）押金为一个月租金',
+    '第二条 违约责任',
+    '提前退租的，押金不退。'
+  ].join('\n'));
+  const clauses = splitClauses(text);
+  for (const clause of clauses) {
+    assert.equal(text.slice(clause.start, clause.end), clause.body, '条款偏移错位: ' + clause.heading);
+    for (const item of clause.items || []) {
+      assert.equal(text.slice(item.start, item.end), item.text, '款项偏移错位: ' + item.id);
+    }
+  }
 });
 
 test('buildFlow 抹平 PDF 硬换行且可映射回原文', () => {

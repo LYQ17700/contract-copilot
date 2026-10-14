@@ -11,7 +11,7 @@ export async function parseImage(buffer, { documentId } = {}) {
   const result = await provider.recognize(buffer, { documentId });
   return {
     engine: 'ocr:' + provider.name,
-    pageCount: 1,
+    pageCount: result.pageCount || 1,
     text: result.text,
     needsOcr: false,
     notices: result.notices || [],
