@@ -28,6 +28,20 @@ export class LocalStorage {
     return fs.promises.readFile(path.join(this.rootDir, this.keyFor(id, extension)));
   }
 
+  /** 接收已在同盘临时目录落盘的文件：优先 rename，跨盘（不同文件系统）时回退为复制。 */
+  async adopt({ id, extension, tmpPath }) {
+    const key = this.keyFor(id, extension);
+    const target = path.join(this.rootDir, key);
+    try {
+      await fs.promises.rename(tmpPath, target);
+    } catch (error) {
+      if (error.code !== 'EXDEV') throw error;
+      await fs.promises.copyFile(tmpPath, target);
+      await fs.promises.unlink(tmpPath).catch(() => {});
+    }
+    return { key, path: target };
+  }
+
   async exists({ id, extension }) {
     return fs.existsSync(path.join(this.rootDir, this.keyFor(id, extension)));
   }
@@ -44,8 +58,8 @@ export class LocalStorage {
 
   async listIds() {
     return fs
-      .readdirSync(this.rootDir)
-      .filter((name) => name.endsWith('.meta.json'))
-      .map((name) => name.replace(/\.meta\.json$/, ''));
+        .readdirSync(this.rootDir)
+        .filter((name) => name.endsWith('.meta.json'))
+        .map((name) => name.replace(/\.meta\.json$/, ''));
   }
 }

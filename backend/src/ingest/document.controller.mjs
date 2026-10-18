@@ -1,5 +1,6 @@
+import path from 'node:path';
 import { config } from '../config/index.mjs';
-import { parseMultipart } from '../http/multipart.mjs';
+import { parseMultipartStream } from '../http/multipart.mjs';
 import { ValidationError } from '../domain/errors.mjs';
 import { analyze, serializePreprocessed } from '../analyze/pod2.client.mjs';
 
@@ -13,10 +14,14 @@ export function createDocumentController({ upload, pipeline, jobs }) {
     const contentType = ctx.header('content-type') || '';
     let stored;
     if (contentType.includes('multipart/form-data')) {
-      const buffer = await ctx.rawBody({ limit: config.maxBytes });
-      const { files, fields } = parseMultipart(buffer, contentType);
+      // 流式解析：正文逐块落盘到临时目录，大文件不整体进内存
+      const tmpDir = path.join(config.varDir, 'tmp', 'upload');
+      const { files, fields } = await parseMultipartStream(ctx.req, contentType, {
+        limit: config.maxBytes + 1024 * 1024,
+        openTmp: upload.createTempSink(tmpDir)
+      });
       const file = files.find((f) => f.name === 'file') || files[0];
-      if (file) stored = await upload.receiveFile({ filename: file.filename, data: file.data });
+      if (file) stored = await upload.receiveStreamed({ filename: file.filename, tmpPath: file.tmpPath, sizeBytes: file.sizeBytes, sha1: file.sha1 });
       else if (fields.text) stored = await upload.receiveText({ text: fields.text, filename: fields.filename });
       else throw new ValidationError('multipart 中既没有 file 也没有 text 字段');
     } else {
@@ -44,9 +49,9 @@ export function createDocumentController({ upload, pipeline, jobs }) {
       const document = await upload.get(ctx.params.id);
       const job = jobs.create({ documentId: document.id, kind: 'extract' });
       Promise.resolve()
-        .then(() => pipeline.run(document.id, { onStep: (steps) => jobs.advance(job.id, steps) }))
-        .then((r) => jobs.finish(job.id, { result: { steps: r.steps, preprocessed: serializePreprocessed(r.preprocessed) } }))
-        .catch((error) => jobs.finish(job.id, { error }));
+          .then(() => pipeline.run(document.id, { onStep: (steps) => jobs.advance(job.id, steps) }))
+          .then((r) => jobs.finish(job.id, { result: { steps: r.steps, preprocessed: serializePreprocessed(r.preprocessed) } }))
+          .catch((error) => jobs.finish(job.id, { error }));
       return ctx.reply(202, { job, hint: 'GET /api/v1/jobs/' + job.id });
     }
     const result = await pipeline.run(ctx.params.id);
