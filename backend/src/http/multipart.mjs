@@ -1,4 +1,4 @@
-import { ValidationError } from '../domain/errors.mjs';
+import { PayloadTooLargeError, ValidationError } from '../domain/errors.mjs';
 
 /**
  * multipart/form-data 逐块流式解析（只取 name/filename 两个字段，够用且可控）。
@@ -44,7 +44,7 @@ export async function parseMultipartStream(req, contentType, { limit = 0, openTm
   const fields = {};
   const files = [];
   let total = 0;
-  const bump = (n) => { total += n; if (total > totalLimit) throw new ValidationError('请求体过大，上限 ' + Math.round(totalLimit / 1024 / 1024) + 'MB'); };
+  const bump = (n) => { total += n; if (total > totalLimit) throw new PayloadTooLargeError(totalLimit); };
 
   const iter = req[Symbol.asyncIterator]();
   const readChunk = async () => {
@@ -53,6 +53,31 @@ export async function parseMultipartStream(req, contentType, { limit = 0, openTm
     bump(value.length);
     return Buffer.from(value);
   };
+
+  // 排空剩余请求体：服务端在返回响应前先把客户端剩余数据读完，
+  // 避免「响应已写出但连接上还有未消费的上传数据」导致 keep-alive 销毁 socket → ECONNRESET。
+  async function drainRemaining() {
+    try {
+      for (;;) {
+        const { done } = await iter.next();
+        if (done) break;
+      }
+    } catch {
+      /* 客户端可能已断开，忽略 */
+    }
+  }
+
+  try {
+    return await parseMultipartInner({ req, HEAD, CRLF, BODY_END, totalLimit, bump, readChunk, fields, files, openTmp });
+  } catch (error) {
+    // 超限（413）和任何解析失败：先排空剩余请求体再抛，客户端才能稳定收到响应
+    await drainRemaining();
+    throw error;
+  }
+}
+
+/** 流式解析主逻辑，抽出便于外层统一处理“先排空再抛错”。 */
+async function parseMultipartInner({ HEAD, CRLF, BODY_END, readChunk, openTmp, fields, files }) {
 
   const ERROR_NEWLINE_EOF = () => new ValidationError('multipart 未正常结束（header 不完整）');
 

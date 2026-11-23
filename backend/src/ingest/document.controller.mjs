@@ -49,9 +49,9 @@ export function createDocumentController({ upload, pipeline, jobs }) {
       const document = await upload.get(ctx.params.id);
       const job = jobs.create({ documentId: document.id, kind: 'extract' });
       Promise.resolve()
-          .then(() => pipeline.run(document.id, { onStep: (steps) => jobs.advance(job.id, steps) }))
-          .then((r) => jobs.finish(job.id, { result: { steps: r.steps, preprocessed: serializePreprocessed(r.preprocessed) } }))
-          .catch((error) => jobs.finish(job.id, { error }));
+        .then(() => pipeline.run(document.id, { onStep: (steps) => jobs.advance(job.id, steps) }))
+        .then((r) => jobs.finish(job.id, { result: { steps: r.steps, preprocessed: serializePreprocessed(r.preprocessed) } }))
+        .catch((error) => jobs.finish(job.id, { error }));
       return ctx.reply(202, { job, hint: 'GET /api/v1/jobs/' + job.id });
     }
     const result = await pipeline.run(ctx.params.id);

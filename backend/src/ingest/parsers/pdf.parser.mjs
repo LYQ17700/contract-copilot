@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { bundleFile, importBundle } from '../../lib/runtime-deps.mjs';
 import { config } from '../../config/index.mjs';
+import { ValidationError } from '../../domain/errors.mjs';
 import { createLogger } from '../../observability/logger.mjs';
 
 /**
@@ -14,20 +15,30 @@ const log = createLogger('ingest.parsers.pdf');
 const CJK = /[\u3000-\u303f\u4e00-\u9fff\uff00-\uffef]/;
 const dirPath = (name) => bundleFile('pdfjs-dist', name).split(path.sep).join('/') + '/';
 
+/**
+ * pdfjs 对「不是合法 PDF / 文件损坏」抛出的错误是原生 Error，无 status。
+ * 判断这些确定性输入错误并包装为 400（前端可据此提示用户更换合规文件），
+ * 而不要把用户传错文件当成服务端异常（500）。
+ */
+function isInvalidPdfError(error) {
+  const msg = String(error?.message || '');
+  return /Invalid PDF|InvalidPDF|FormatError|Failed to parse|not a valid PDF|Encrypted PDF|password required|Malformed/i.test(msg);
+}
+
 /** 缓存 pdfjs 模块加载，避免每次解析都触发 3s 首载。 */
 let pdfjsPromise = null;
 export function warmupPdfjs() {
   if (!pdfjsPromise) {
     pdfjsPromise = importBundle('pdfjs-dist/legacy/build/pdf.mjs')
-        .then((mod) => {
-          log.info('pdfjs warmed up');
-          return mod;
-        })
-        .catch((error) => {
-          pdfjsPromise = null; // 允许下次重试
-          log.error('pdfjs warmup failed', { message: error.message });
-          throw error;
-        });
+      .then((mod) => {
+        log.info('pdfjs warmed up');
+        return mod;
+      })
+      .catch((error) => {
+        pdfjsPromise = null; // 允许下次重试
+        log.error('pdfjs warmup failed', { message: error.message });
+        throw error;
+      });
   }
   return pdfjsPromise;
 }
@@ -41,8 +52,8 @@ function withTimeout(promise, ms, onTimeout) {
       reject(new Error('PDF 解析超时（超过 ' + Math.round(ms / 1000) + 's）'));
     }, ms);
     promise.then(
-        (value) => { clearTimeout(timer); resolve(value); },
-        (error) => { clearTimeout(timer); reject(error); }
+      (value) => { clearTimeout(timer); resolve(value); },
+      (error) => { clearTimeout(timer); reject(error); }
     );
   });
 }
@@ -122,7 +133,11 @@ export async function parsePdf(buffer, { attempts = config.parseRetries + 1, tim
     } catch (error) {
       lastError = error;
       const transient = /超时|interrupted|UnknownErrorException|aborted/i.test(error?.message || '');
-      if (!transient && i === 0) throw error; // 确定性错误（非 PDF）不重试
+      // 确定性输入错误（非 PDF / 损坏）：不重试，包装成 400，让前端针对性提示
+      if (!transient && isInvalidPdfError(error)) {
+        throw new ValidationError('文件不是有效的 PDF（可能损坏或扩展名不符），请更换合规文件', { cause: error });
+      }
+      if (!transient && i === 0) throw error; // 其他确定性错误（非 PDF）不重试
       log.warn('pdf parse attempt failed', { attempt: i + 1, message: error.message });
       await new Promise((r) => setTimeout(r, 100)); // 短暂退避
     } finally {

@@ -90,6 +90,40 @@ test('health 与路由表可读', async () => {
   });
 });
 
+test('损坏/非 PDF 文件提取返回 4xx 而非 500', async () => {
+  await withServer(async (base) => {
+    const form = new FormData();
+    form.append('file', new Blob(['# not a pdf at all, just plain text content'], { type: 'application/pdf' }), 'fake.pdf');
+    const uploaded = await fetch(base + '/api/v1/documents', { method: 'POST', body: form });
+    assert.equal(uploaded.status, 201, '扩展名校验通过，应完成接收');
+    const { document } = await uploaded.json();
+
+    const extracted = await fetch(base + '/api/v1/documents/' + document.id + '/extract', { method: 'POST' });
+    assert.equal(extracted.status, 400, '损坏 PDF 应返回 400 而不是 500');
+    const payload = await extracted.json();
+    assert.equal(payload.error.code, 'invalid_request');
+    assert.match(payload.error.message, /不是有效/);
+  });
+});
+
+test('超大文件上传稳定返回 413 且不出现 ECONNRESET', async () => {
+  const original = config.maxBytes;
+  config.maxBytes = 1024 * 1024; // 临时调小上限模拟受限环境，跑完恢复
+  try {
+    await withServer(async (base) => {
+      const big = Buffer.alloc(3 * 1024 * 1024, 0x61); // 3MB > 1MB 上限
+      const form = new FormData();
+      form.append('file', new Blob([big], { type: 'text/plain' }), 'big.txt');
+      const res = await fetch(base + '/api/v1/documents', { method: 'POST', body: form });
+      assert.equal(res.status, 413, '超过上限应稳定返回 413，不应 ECONNRESET');
+      const payload = await res.json();
+      assert.equal(payload.error.code, 'payload_too_large');
+    });
+  } finally {
+    config.maxBytes = original;
+  }
+});
+
 test('/health 探测不会发起任何外部调用', async () => {
   const realFetch = globalThis.fetch;
   const original = config.ocrProvider;

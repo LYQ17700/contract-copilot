@@ -18,10 +18,14 @@ test('parsePositiveInt 只接受有效正整数', () => {
 });
 
 test('withTimeout 超时后抛出可识别错误', async () => {
+  // 绑定真实事件循环句柄（见 withTimeout 内部 timer unref 的行为），避免空 Promise 让进程提前退出
+  const pending = new Promise((resolve) => setTimeout(resolve, 200));
+  const started = Date.now();
   await assert.rejects(
-    withTimeout(new Promise(() => {}), 20, '测试任务'),
+    withTimeout(pending, 20, '测试任务'),
     (error) => error instanceof TimeoutError && error.code === 'timeout'
   );
+  assert.ok(Date.now() - started < 150, '应在约 20ms 时触发超时');
 });
 
 test('retry 只重试瞬时错误', async () => {

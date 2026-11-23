@@ -58,8 +58,8 @@ export class LocalStorage {
 
   async listIds() {
     return fs
-        .readdirSync(this.rootDir)
-        .filter((name) => name.endsWith('.meta.json'))
-        .map((name) => name.replace(/\.meta\.json$/, ''));
+      .readdirSync(this.rootDir)
+      .filter((name) => name.endsWith('.meta.json'))
+      .map((name) => name.replace(/\.meta\.json$/, ''));
   }
 }

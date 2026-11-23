@@ -124,19 +124,23 @@ export class UploadService {
       const hash = crypto.createHash('sha1');
       let sizeBytes = 0;
       const handle = await fs.promises.open(tmpPath, 'w');
+      let rejected = false;
       return {
         tmpPath,
         async write(chunk) {
           if (!chunk || !chunk.length) return;
           sizeBytes += chunk.length;
           if (sizeBytes > config.maxBytes) {
+            rejected = true;
             await handle.close().catch(() => {});
+            await fs.promises.unlink(tmpPath).catch(() => {});
             throw new PayloadTooLargeError(config.maxBytes);
           }
           hash.update(chunk);
           await handle.write(chunk);
         },
         async end() {
+          if (rejected) return { tmpPath, sizeBytes, sha1: hash.digest('hex') };
           await handle.close();
           return { tmpPath, sizeBytes, sha1: hash.digest('hex') };
         },
