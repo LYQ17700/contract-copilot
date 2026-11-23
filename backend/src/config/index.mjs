@@ -53,6 +53,8 @@ export function loadConfig(overrides = {}) {
       baseUrl: (env.POD2_BASE_URL || 'http://127.0.0.1:5178').replace(/\/+$/, ''),
       mode: env.ANALYZE_MODE || 'mock'
     },
+    parseTimeoutMs: int(env.PARSE_TIMEOUT_MS, 30000),
+    parseRetries: int(env.PARSE_RETRIES, 2),
     jobTtlMs: int(env.JOB_TTL_MIN, 30) * 60 * 1000,
     jobSweepMs: int(env.JOB_SWEEP_MIN, 5) * 60 * 1000,
     corsOrigins: list(env.CORS_ORIGINS || '*'),

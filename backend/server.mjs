@@ -9,6 +9,7 @@ import { UploadService } from './src/ingest/upload.service.mjs';
 import { ExtractPipeline } from './src/textproc/pipeline.service.mjs';
 import { MemoryJobStore } from './src/jobs/job.store.mjs';
 import { shutdownOcrProvider } from './src/textproc/ocr/provider.mjs';
+import { warmupPdfjs } from './src/ingest/parsers/pdf.parser.mjs';
 import { createLogger } from './src/observability/logger.mjs';
 
 /**
@@ -82,4 +83,6 @@ if (isMain) {
     createLogger('boot').info('listening', { url: 'http://' + config.host + ':' + config.port, routes: router.routes.length, ocr: config.ocrProvider, analyzeMode: config.pod2.mode });
     process.stdout.write('  合同避坑助手 · 后端骨架 → http://' + config.host + ':' + config.port + '/health\n');
   });
+  // pdfjs 首次加载约 3s：后台预热，避免首个 PDF 请求卡顿。失败不阻塞服务启动。
+  warmupPdfjs().catch(() => {});
 }

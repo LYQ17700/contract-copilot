@@ -4,11 +4,18 @@
   "private": true,
   "type": "module",
   "description": "合同避坑助手 · Pod1 后端骨架（文件接收与解析 / OCR 与文本预处理）",
-  "engines": { "node": ">=18" },
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "start": "node server.mjs",
     "dev": "node --watch server.mjs",
     "test": "node --test",
     "todo": "node tools/list-todo.mjs"
+  },
+  "dependencies": {
+    "jszip": "^3.10.2",
+    "pdfjs-dist": "^6.4.299",
+    "sharp": "^0.35.5"
   }
 }
